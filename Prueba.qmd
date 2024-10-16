@@ -103,15 +103,15 @@ El mercado mayorista español primero se integró con el mercado portugués, for
 
 -   Se basa en el **coste marginal**, que indica cuánto le cuesta a un productor generar un MWh adicional de electricidad.
 
--   Las centrales eléctricas **se ponen en el mercado por orden** de su coste marginal de producción, empezando por la menos cara hasta llegar a la más cara que se activa para satisfacer la demanda.
+-   Las centrales eléctricas **se ponen en el mercado por orden** de su coste marginal de producción, empezando por la menos cara hasta llegar a la más cara que se activa para satisfacer la demanda
 
-    ## ¿Cómo se forman los precios spot?
+## ¿Cómo se forman los precios spot?
 
 -   **La última central activada fija el precio**. Todos los productores reciben el mismo precio €/MWh por el mismo producto: la electricidad (es un precio uniforme o *"pay-as-clear"* y no *"pay-as-bid"*).
 
--   Los costes marginales de producción menos caros suelen ser los de las renovables, las centrales más caras son las centrales de gas y carbón.
+-   Los costes marginales de producción **menos caros** suelen ser los de las renovables, las centrales **más caras** son las centrales de gas y carbón.
 
--   El uso de la generación de carbón y gas en Europa debe cubrirse con certificados de CO~2~, lo que crea una conexión directa entre el precio de la electricidad y el del CO~2~.
+-   El uso de la generación de carbón y gas en Europa debe cubrirse con certificados de CO~2~, lo que crea una **relación entre el precio de la electricidad y el del CO~2~**.
 
 ## Curva de mérito
 
