@@ -1,0 +1,873 @@
+---
+title: "Los precios de la electricidad: Mercado Español"
+author: "Stephanía Mosquera López"
+date: "2024-10-17"
+format:
+  revealjs: 
+    theme: [simple,style.scss]
+---
+
+```{r}
+#| include: false
+#| label: inicio
+
+library(tidyverse)
+library(ggplot2)
+library(zoo)
+library(RQuantLib)
+library(timeDate)
+library(shiny)
+library(suncalc)
+library(lubridate)
+library(readxl)
+library(writexl)
+library(reshape2)
+library(dplyr)
+library(xts)
+library(timeSeries)
+library(tseries)
+library(forecast)
+library(TTR)
+library(quantreg)
+library(strucchange)
+library(rugarch)
+library(FinTS)
+library(timetk)
+library(knitr)
+library(kableExtra)
+library(stringr)
+library(Rfast)
+library(stargazer)
+library(patchwork)
+
+
+setwd("C:/Users/smosq/OneDrive/1. Orkestra/6. Master Dual UD/2. Presentación precios de la electricidad/Quarto/Data")
+#setwd("C:/Users/sanbo/OneDrive/2. Proyecto Diseño del Mercado Eléctrico/Datos/Datos Hora_REE")
+
+load("DatosQuarto.RData")
+
+DataTM <- read_excel("Tecnologias marginales 2021-2023.xlsx")
+DdaClima <- read_excel("Demanda Clima.xlsx",sheet = "Demanda")
+#Desvios <- read_excel("Coste desvios.xlsx")
+#Potencia <- read_excel("Potencia instalada GR.xlsx")
+
+```
+
+# Introducción
+
+## La electricidad
+
+-   Es un commodity **local**
+
+-   **No** es almacenable (oferta y demanda deben ser iguales en cada momento)
+
+-   Altamente **estacional**
+
+-   Tiene **limitaciones** en su transporte (obedece a ciertas leyes)
+
+-   Su oferta y demanda dependen de **factores climáticos** (entre otros)
+
+## La electricidad
+
+-   Es un **bien fundamental** para las personas y la industria
+
+-   Los precios minoristas (o la factura de electricidad) se pueden dividir en tres componentes: **precio por la energía consumida** (coste de aprovisionamiento y margen de comercialización), costes de transprote y distribución, e impuestos y cargos
+
+-   El primer componente depende principalmente de los precios en el **mercado mayorista**
+
+## Mercado mayorista
+
+Conjunto de **plataformas de negociación** en las que se contrata energía eléctrica para su entrega en diferentes horizontes temporales, que pueden ser a plazo (para las próximas semanas, meses, trimestres o años) o al contado (para el día siguiente o las horas siguientes).
+
+![Secuencia de mercados](Secuencia%20de%20mercados1.png){fig-align="center"}
+
+## Mercado mayorista
+
+![Secuencia de los mercados en España (Fuente: Energía y Sociedad)](Secuencua%20de%20mercados.png){fig-align="center" width="550"}
+
+## Mercado spot o de contado
+
+En Europa existe un **mercado zonal** integrado de la electricidad que permite a productores y consumidores comprar y vender en una zona mayor que la de un solo país: todos los países de la UE participan en el acoplamiento diario único.
+
+![](Mercado%20zonal.png){fig-align="center" width="250"}
+
+## Mercado spot o de contado
+
+El algoritmo de compensación (Euphemia) del mercado acepta las ofertas presentadas por todos los participantes del mercado con el fin de **maximizar el bienestar social** total (las diferencias de precios entre las zonas resultan de las restricciones físicas de intercambio).
+
+El mercado mayorista español primero se integró con el mercado portugués, formando el denominado **Mercado Ibérico** **de la Electricidad** (MIBEL), y a partir del 2014, el mercado diario se acopló con el mercado europeo.
+
+## ¿Cómo se forman los precios spot?
+
+-   Todos los días del año a las **12:00 CET**, se lleva a cabo la sesión del mercado diario en la que se fijan los precios y energías de la electricidad en toda Europa para las veinticuatro horas del día siguiente.
+
+-   Se basa en el **coste marginal**, que indica cuánto le cuesta a un productor generar un MWh adicional de electricidad.
+
+-   Las centrales eléctricas **se ponen en el mercado por orden** de su coste marginal de producción, empezando por la menos cara hasta llegar a la más cara que se activa para satisfacer la demanda.
+
+    ## ¿Cómo se forman los precios spot?
+
+-   **La última central activada fija el precio**. Todos los productores reciben el mismo precio €/MWh por el mismo producto: la electricidad (es un precio uniforme o *"pay-as-clear"* y no *"pay-as-bid"*).
+
+-   Los costes marginales de producción menos caros suelen ser los de las renovables, las centrales más caras son las centrales de gas y carbón.
+
+-   El uso de la generación de carbón y gas en Europa debe cubrirse con certificados de CO~2~, lo que crea una conexión directa entre el precio de la electricidad y el del CO~2~.
+
+## Curva de mérito
+
+![Curva de mérito (Fuente: https://www.squeaky.energy/blog/understanding-power-markets-merit-order-and-marginal-pricing)](Merit-Order-Effect-Chart_Squeaky.png){width="1200"}
+
+## Precio spot o *Day-Ahead*
+
+-   A **corto plazo**, el precio spot es decisivo para las decisiones de generación y consumo
+
+-   A **largo plazo**, los precios al contado dan señales cruciales para la inversión en nuevos activos energéticos
+
+-   Además, son una **referencia** clave para los mercados a plazo y de balanceo
+
+-   Se **caracterizan** por tener una gran cantidad de datos atípicos, patrones estacionales, y reversión a la media.
+
+-   Su **modelación y pronóstico es un reto** para los generadores, operadores del mercado y de la red (académicos).
+
+-   Mayor reto con el **incremento de las fuentes de generación renovables** no convencionales
+
+## Fuentes de los datos
+
+A continuación se presenta un análisis de las características del mercado eléctrico español mediante la identificación de regularidades y tendencias en las series temporales de datos sobre demanda, generación de energía eléctrica y precios de la electricidad y combustibles.
+
+-   Las fuentes de información utilizadas son: [e.sios](https://www.esios.ree.es/es?locale=es), [OMIE](https://www.omie.es/) y [MIBGAS](https://www.mibgas.es/es)
+
+-   La frecuencia de los datos es horaria y diaria
+
+-   Se analiza el período de 2014 a 2024
+
+# Fundamentales
+
+## Demanda
+
+```{r}
+#| label: Descomposicion dda diaria
+#| warning: false
+#| echo: false
+
+y <- ts(DataDiaria$Demanda[2:3653],start=c(2014,1), end=c(2023,12), frequency=365) 
+DdaComponentes <- decompose(y)
+plot(DdaComponentes)
+```
+
+## Demanda
+
+```{r}
+#| label: Est. des dda diaria 
+#| warning: false
+#| echo: false
+
+
+ret2 <- as.data.frame(DataDiaria$Demanda[2:3653])
+ret2 <- ret2 %>% 
+         mutate(Fecha3=DataDiaria$Fecha[2:3653])
+
+colnames(ret2)=c("Dda","Fecha")
+
+EstDesDda <- matrix(,6,6) 
+
+j=6
+
+for (i in 1:j) {
+                yd <- ret2  %>%
+                  dplyr::filter(year(Fecha)==(2017+i))
+                
+                EstDesDda[1,i]=timeSeries::colMins(yd$Dda) 
+                EstDesDda[2,i]=mean(yd$Dda)
+                EstDesDda[3,i]=timeSeries::colMaxs(yd$Dda) 
+                EstDesDda[4,i]=timeSeries::colSds(yd$Dda) 
+                EstDesDda[5,i]=timeSeries::colSkewness(yd$Dda) 
+                EstDesDda[6,i]=timeSeries::colKurtosis(yd$Dda) 
+}
+
+rownames(EstDesDda) <- c("Mínimo","Media","Máximo","D. Est"
+                              ,"Sesgo","Curtosis") 
+colnames(EstDesDda) <- c("2018","2019","2020","2021","2022","2023") 
+
+EstDesDda %>% 
+  kable(digits=2,format.args = list(big.mark = ","),
+        caption="Estadísticas descriptivas demanda diaria")  %>%
+  kable_styling("striped", full_width = F, position = "left",font_size = 24)
+```
+
+La demanda de electricidad disminuyó en 2020 debido a la pandemia, repuntó en 2021 y luego ha venido decreciendo durante el 2022 y 2023 (producto del incremento en los precios). La demanda industrial no ha recuperado sus niveles precrisis energética.
+
+## Renovables
+
+```{r}
+#| label: Generacion renovables
+#| warning: false
+#| echo: false
+
+DataMesGen <- DataDiaria %>%
+              mutate(Fecha2 = as.yearmon(Fecha))  %>%
+              group_by(Fecha2) %>%
+              summarise(Eolica=sum(Eolica, na.rm = TRUE),
+                        Solar=sum(SolarPV, na.rm = TRUE),
+                        Hidra=sum(HidraNoUGH, na.rm = TRUE)) %>%
+              ungroup() %>%
+              dplyr::filter(year(Fecha2)>=2014)
+
+ggplot(DataMesGen) +
+  geom_line(aes(x = Fecha2, y = Eolica, colour = 'Eólica')) +
+  geom_line(aes(x = Fecha2, y = Solar, colour = 'Solar PV')) +
+  geom_line(aes(x = Fecha2, y = Hidra, colour = 'Hidraúlica fluyente')) +
+  labs(title = 'Evolución de fuentes de generación renovable', x = 'Fecha', y = 'MWh') +
+  scale_color_manual(values =c("coral1","#7cae00","#c77cff"))+
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+
+```
+
+## Renovables
+
+Las renovables intermitentes, no gestionables o no programables se enfrentan a las siguientes retos:
+
+1)  Bajos factores de capacidad
+2)  Canibalización
+3)  Correlación del riesgo climático
+4)  Vertidos / precios negativos ([más de 1 TWh de renovables fueron recortados sin compensación durante los años 2022 y 2023 en España](https://www.eleconomista.es/energia/noticias/12680531/02/24/el-recibo-de-la-luz-se-encarece-en-9-euros-por-los-vertidos-de-energia-renovable.html))
+5)  Errores de pronóstico
+6)  Mayores requerimientos de flexibilidad en el sistema
+
+## Requerimientos de flexibilidad
+
+Para analizar el comportamiento de los requerimientos de flexibilidad del sistema eléctrico, se toma la generación renovable no gestionable horaria $(GR)$, que es igual a **la suma de la generación eólica, la solar fotovoltaica y la hidráulica fluyente.**
+
+Se analiza su variación para horizontes de tiempo de una hora $(GR_h - GR_{h-1})$ y de cuatro horas $(GR_{h} - GR_{h-4})$.
+
+Esta variación de la aportación de las energías renovables no gestionables puede generar mayor necesidad de flexibilidad en el sistema.
+
+## Requerimientos de flexibilidad
+
+```{r}
+#| label: GR
+#| include: false
+
+DataHoraria2 <- DataHoraria
+DataHoraria<- DataHoraria %>%
+               ungroup() %>%
+               mutate(GR = Eolica + SolarPV + HidraNoUGH,
+                      DRes = Demanda - GR - Nuclear) %>%
+               dplyr::filter(!is.na(DRes))
+```
+
+```{r}
+#| label: Diff GR
+#| include: false
+
+cambiohora <- c("2014-10-26","2015-10-25","2016-10-30","2017-10-29","2018-10-28","2019-10-27","2020-10-25","2021-10-31","2022-10-30") 
+
+DataHoraria <- DataHoraria %>%
+                mutate(diffGR = c(NA,diff(GR)),
+                       diffGR4 = c(rep(NA,4),diff(GR, lag = 4)),
+                       diffDda = c(NA,diff(Demanda)),
+                       diffDda4 = c(rep(NA,4),diff(Demanda, lag = 4)),
+                       diffDR = c(NA,diff(DRes)),
+                       diffDR4 = c(rep(NA,4),diff(DRes, lag = 4)),
+                       diffCC = c(NA,diff(CC)),
+                       diffCC4 = c(rep(NA,4),diff(CC, lag = 4)),
+                       diffCarb = c(NA,diff(Carbon)),
+                       diffCarb4 = c(rep(NA,4),diff(Carbon, lag = 4)),
+                       diffHidr = c(NA,diff(HidraUGH)),
+                       diffHidr4 = c(rep(NA,4),diff(HidraUGH, lag = 4))) %>%
+                dplyr::filter(!Fecha %in% cambiohora)  
+              
+```
+
+```{r}
+#| label: Figure 1
+#| warning: false
+#| echo: false
+
+
+DataMonth <- DataHoraria %>%
+              mutate(Fecha2 = as.yearmon(Fecha))  %>%
+              group_by(Fecha2) %>%
+              summarise(MaxGR1=max(diffGR, na.rm = TRUE),
+                        MaxGR4=max(diffGR4, na.rm = TRUE),
+                        MaxDda1=max(diffDda, na.rm = TRUE),
+                        MaxDda4=max(diffDda4, na.rm = TRUE),
+                        MaxDR1=max(diffDR, na.rm = TRUE),
+                        MaxDR4=max(diffDR4, na.rm = TRUE),
+                        MaxCC1=max(diffCC, na.rm = TRUE),
+                        MaxCC4=max(diffCC4, na.rm = TRUE),
+                        MaxCarb1=max(diffCarb, na.rm = TRUE),
+                        MaxCarb4=max(diffCarb4, na.rm = TRUE),
+                        MaxHidr1=max(diffHidr, na.rm = TRUE),
+                        MaxHidr4=max(diffHidr4, na.rm = TRUE),
+                        MeanGR1=mean(diffGR, na.rm = TRUE),
+                        MeanGR4=mean(diffGR4, na.rm = TRUE),
+                        MeanDda1=mean(diffDda, na.rm = TRUE),
+                        MeanDda4=mean(diffDda4, na.rm = TRUE),
+                        MeanDR1=mean(diffDR, na.rm = TRUE),
+                        MeanDR4=mean(diffDR4, na.rm = TRUE),
+                        MeanCC1=mean(diffCC, na.rm = TRUE),
+                        MeanCC4=mean(diffCC4, na.rm = TRUE),
+                        MeanCarb1=mean(diffCarb, na.rm = TRUE),
+                        MeanCarb4=mean(diffCarb4, na.rm = TRUE),
+                        MeanHidr1=mean(diffHidr, na.rm = TRUE),
+                        MeanHidr4=mean(diffHidr4, na.rm = TRUE)) %>%
+              ungroup() %>%
+              dplyr::filter(year(Fecha2)>=2014)
+              
+
+              
+ggplot(DataMonth) +
+  geom_line(aes(x =Fecha2, y = MaxGR1, colour = '1 hora')) +
+  geom_line(aes(x = Fecha2, y = MaxGR4, colour = '4 horas')) +
+   labs(title = 'Variación máxima mensual en la generación renovable no gestionable', x = 'Fecha', y = 'MWh') +
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+```
+
+## Requerimientos de flexibilidad
+
+Los requerimientos netos de flexibilidad o hueco térmico se calculan como las diferencias de $D-N-GR$ para horizontes de una y cuatro horas. $D$ es la demanda, $N$ es la generación nuclear y $GR$ la generación renovable no gestionable.
+
+```{r}
+#| warning: false
+#| echo: false
+#| label: req neto
+              
+ggplot(DataMonth) +
+  geom_line(aes(x =Fecha2, y = MaxDR1, colour = '1 hora')) +
+  geom_line(aes(x = Fecha2, y = MaxDR4, colour = '4 horas'), shape = 17) +
+   labs(title = 'Requerimientos máximos de flexibilidad netos en el sistema eléctrico peninsular en horizontes de una y cuatro horas', x = 'Fecha', y = 'MWh') +
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+
+# ggplot(DataMonth) +
+#   geom_line(aes(x =Fecha2, y = MeanDR1, colour = '1 hora')) +
+#   geom_line(aes(x = Fecha2, y = MeanDR4, colour = '4 horas'), shape = 17) +
+#    labs(title = 'Requerimientos promedio de flexibilidad netos en el sistema eléctrico peninsular 
+#    en horizontes de una y cuatro horas', x = 'Fecha', y = 'MWh') +
+#   theme(legend.position="bottom") +
+#   theme(legend.title=element_blank())
+
+```
+
+## Generación convencional
+
+```{r}
+#| label: Generacion H, CC, C, N
+#| warning: false
+#| echo: false
+
+DataMesGen <- DataDiaria %>%
+              mutate(Fecha2 = as.yearmon(Fecha))  %>%
+              group_by(Fecha2) %>%
+              summarise(CC=sum(CC, na.rm = TRUE),
+                        HidraUGH=sum(HidraUGH, na.rm = TRUE),
+                        Carbon=sum(Carbon, na.rm = TRUE)) %>%
+              ungroup() %>%
+              dplyr::filter(year(Fecha2)>=2014)
+
+ggplot(DataMesGen) +
+  geom_line(aes(x = Fecha2, y = CC, colour = 'Ciclo Combinado')) +
+  geom_line(aes(x = Fecha2, y = Carbon, colour = 'Carbón')) +
+  geom_line(aes(x = Fecha2, y = HidraUGH, colour = 'Hidraúlica')) +
+  labs(title = 'Evolución de fuentes de generación convencionales que brindan flexibilidad', x = 'Fecha', y = 'MWh') +
+  scale_color_manual(values =c("coral1","#7cae00","#c77cff"))+
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+
+```
+
+## Precios de commodities
+
+```{r}
+#| label: Gas y EUA
+#| warning: false
+#| echo: false
+
+
+p1 = ggplot(data=DataSpread,aes(x=Fecha)) + 
+  geom_line(aes(y=MIBGAS,col="Precio Gas"),show.legend = FALSE)+
+  labs(title = 'Precios gas natural',x = 'Fecha', y = '')+
+  scale_color_manual(values = "black")
+  
+  
+p2 = ggplot(data=DataSpread,aes(x=Fecha)) + 
+  geom_line(aes(y=EUA,col="Precio Gas"),show.legend = FALSE)+
+  labs(title = 'Precios CO2',x = 'Fecha', y = '')+
+  scale_color_manual(values = "black")
+  
+  
+p1+ p2+ plot_layout(ncol=1)
+
+```
+
+## Tecnologías marginales
+
+Utilizando los datos disponibles en [OMIE](https://www.omie.es/) se calcula el porcentaje de horas que cada tecnología es marginal para los años 2021 a 2023:
+
+-   En el 2021, la generación hidráulica es la que en mayor porcentaje marcó el precio de la electricidad
+
+-   En 2022, el porcentaje de horas en que los ciclos combinados marcan el precio se incrementó
+
+-   En 2023 el comportamiento es similar al de 2021, pero con una mayor participación de la generación renovable, cogeneración y residuos como tecnologías marginales
+
+```{r}
+#| label: Marginal
+#| warning: false
+#| echo: false
+
+
+DataTM <- DataTM %>%
+  melt(id.var=c("Fecha")) %>%
+  arrange(Fecha, variable)
+
+DataTM <- DataTM %>% 
+  rename(Hora = variable)
+
+DataTM <- DataTM %>% 
+  rename(Tecnologia = value)
+
+DataTM <- DataTM %>% 
+  mutate(YearMonth = paste0(year(Fecha),"-",month(Fecha)))
+
+DataTM[ ,5:8] <- str_split_fixed(DataTM$Tecnologia,"\n", 4)
+DataTM[which(DataTM$V6==""),5:8] <- str_split_fixed(DataTM$Tecnologia[which(DataTM$V6=="")]," ", 4)
+
+df7 <- data.frame(matrix(ncol = 2, nrow = 0))
+colnames(df7) <- c("YearMonth","marg")
+
+for (i in 5:8) {
+  df6 <- DataTM[,c(4,i)]
+  names(df6) <- c("YearMonth","marg")
+  df6 <- df6 %>%
+    mutate(n=1) %>%
+    group_by(YearMonth,marg) %>%
+    summarise(ocurr=sum(n)) %>%
+    ungroup()
+  df7 <- rbind(df7,df6)
+}
+
+df7 <- df7 %>%
+        mutate(marg=gsub("\r","",marg),
+               marg=gsub("II","HI",marg)) %>%
+        dplyr::filter(marg!="") %>%
+        group_by(YearMonth,marg) %>%
+          summarise(veces=sum(ocurr)) %>%
+        ungroup()
+  
+df7 <- df7 %>%
+        mutate(Fecha=ifelse(nchar(YearMonth)==7,
+                                  YearMonth,
+                                  paste0(substr(YearMonth,1,5),"0",substr(YearMonth,6,6))))
+
+df7$Fecha= as.yearmon(df7$Fecha)
+
+df7 <- df7 %>% 
+        mutate(Year=year(Fecha))%>% 
+        mutate(Mes=month(Fecha,label=TRUE))
+   
+df7 <- df7 %>% 
+        group_by(Mes, Year) %>% 
+        mutate(perc = veces*100/sum(veces)) %>% 
+        ungroup()
+
+df7 <- df7 %>% 
+        mutate(marg=ifelse(marg=="BG","Bombeo generación",
+                           ifelse(marg=="HI","Hidráulica",
+                             ifelse(marg=="MIP","Importación Portugal",
+                               ifelse(marg=="RE","Renov.,cog.y res",
+                                ifelse(marg=="TCC","Ciclo Combinado",
+                                  ifelse(marg=="NU","Nuclear",
+                                              "Carbón")))))))
+                                  
+```
+
+## Tecnologías marginales - 2021
+
+```{r}
+#| label: Marginal 1
+#| warning: false
+#| echo: false
+
+
+ggplot(subset(df7,Year==2021), aes(x = Mes, y = perc, fill = marg)) +
+  geom_bar(stat="identity", width = 0.8) +
+  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
+  theme_minimal(base_size = 12)+
+  scale_fill_brewer(palette="RdBu")+
+  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2021')
+
+```
+
+## Tecnologías marginales - 2022
+
+```{r}
+#| label: Marginal 2
+#| warning: false
+#| echo: false
+
+
+ggplot(subset(df7,Year==2022), aes(x = Mes, y = perc, fill = marg)) +
+  geom_bar(stat="identity", width = 0.8) +
+  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
+  theme_minimal(base_size = 12)+
+  scale_fill_brewer(palette="RdBu")+
+  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2022')
+
+```
+
+## Tecnologías marginales - 2023
+
+```{r}
+#| label: Marginal 3
+#| warning: false
+#| echo: false
+
+ggplot(subset(df7,Year==2023), aes(x = Mes, y = perc, fill = marg)) +
+  geom_bar(stat="identity", width = 0.8) +
+  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
+  theme_minimal(base_size = 12)+
+  scale_fill_brewer(palette="RdBu")+
+  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2023')
+
+
+```
+
+## Tecnologías marginales - 2021 a 2023
+
+```{r}
+
+#Tabla
+
+dfn <- df7[,c(2,4,5,6,7)]
+
+dfn <- dfn %>% 
+        group_by(marg,Year) %>% 
+        summarise(PPerc=mean(perc, na.rm = TRUE)) %>% 
+        ungroup() 
+        
+
+dfn_wide <- spread(dfn,Year,PPerc)
+
+dfn_wide <- dfn_wide  %>%
+               mutate(`2021` = ifelse(is.na(`2021`),0,`2021`))
+             
+dfn2 <- dfn_wide
+dfn2 <- as.matrix(dfn2[,2:4])
+rownames(dfn2) <- c("Bombeo generación","Carbón","Ciclo Combinado",
+                    "Hidraúlica","Importación Portugal","Nuclear","Renov., cog. y res")
+
+dfn2 %>% 
+  kable(digits=2,format.args = list(big.mark = ","),caption="Promedio del porcentaje de horas en las que marca el precio cada tecnología por año")  %>%
+  kable_styling("striped", full_width = F, position = "left",font_size = 28)
+```
+
+# Evolución de los precios spot
+
+## Datos
+
+-   En es esta sección se analiza el comportamiento de los precios de electricidad en el mercado mayorista español.
+
+-   Se utilizan los datos publicados en [e.sios](https://www.esios.ree.es/).
+
+-   La frecuencia de los datos es horaria y diaria, y el período de análisis inicia en enero de 2014 y termina en septiembre de 2024.
+
+## Precios horarios
+
+```{r}
+#| label: Descom precios hora
+#| warning: false
+#| echo: false
+
+Ph <- ts(DataHoraria$Precio[2:88852], start=c(2014,1), end=c(2024,6), frequency=8766)
+
+PrecioHComponentes <- decompose(Ph)
+plot(PrecioHComponentes)
+```
+
+## Precios horarios
+
+::: columns
+::: {.column width="25%"}
+```{r}
+#| label: Est.des precios hora
+#| warning: false
+#| echo: false
+
+#adf.test(DataHoraria$Precio[2:77414])
+
+pre <- as.data.frame(DataHoraria$Precio[2:88852])
+EstDesPre <- matrix(,6,1)
+
+EstDesPre[1]=timeSeries::colMins(pre)
+EstDesPre[2]=timeSeries::colMeans(pre,na.rm=TRUE)
+EstDesPre[3]=timeSeries::colMaxs(pre)
+EstDesPre[4]=timeSeries::colSds(pre)
+EstDesPre[5]=timeSeries::colSkewness(pre)
+EstDesPre[6]=timeSeries::colKurtosis(pre)
+
+rownames(EstDesPre) <- c("Mínimo","Media","Máximo","D. Est","Sesgo","Curtosis")
+colnames(EstDesPre) <- c("Precios spot horarios")
+
+EstDesPre %>%
+  kable(digits=2,format.args = list(big.mark = ","),caption="Estadísticas descriptivas precios horarios")  %>%
+  kable_styling("striped", full_width = F, position = "center",font_size = 20)
+```
+:::
+
+::: {.column width="75%"}
+```{r}
+#| label: Histograma precios
+#| warning: false
+#| echo: false
+
+ggplot(data=DataHoraria, aes(x=Precio)) + geom_histogram()+
+   geom_histogram(color="black", fill="lightgrey")+
+   labs(title = 'Histograma precios spot horarios', x = 'Precios spot horarios', y = '')
+```
+:::
+:::
+
+## Precios horarios
+
+-   Al descomponer la serie de tiempo de los precios horarios entre su tendencia, estacionalidad y componente aleatorio, se encuentra el comportamiento alcista de los datos durante el 2021 y 2022.
+
+-   En las estadísticas descriptivas se observa que la serie de precios tiene una curtosis mayor a tres, indicando que cumple con el hecho estilizado de los precios de electricidad de tener una distribución de colas pesas o con una gran cantidad de datos extremos, tanto en la cola derecha (precios altos) como en la cola izquierda (precios bajos).
+
+-   Además, la serie de precios presenta sesgo positivo, indicando que se concentran más datos hacia la derecha de la media de los precios que hacia la izquierda.
+
+## MOE
+
+Una aproximación a la estimación del efecto de mérito (*merit-order effect*) se puede realizar por mínimos cuadrados ordinarios, utilizando la siguiente regresión:
+
+$$ Precio_h = b_0+b_1Eolica_h+b_2PV_h+b_3Demanda_h+\epsilon_h $$
+
+donde $Precio_h$ es el precio spot en la hora $h$, $Eolica_h$ es la generación eólica en la hora $h$, $PV_h$ es la generación solar fotovoltaica en $h$, $Demanda_h$ es la demanda y $\epsilon$ son los errores.
+
+De esta manera, los betas $b_1$ y $b_2$ estiman en cuánto disminuyen los precios por cada megavatio hora adicional de electricidad generado con fuentes eólicas o fotovoltaicas, respectivamente.
+
+## MOE
+
+```{r}
+#| label: MOE
+#| warning: false
+#| echo: false
+
+k = 8766
+j= 88852-k
+
+coef = matrix(,j,4)
+
+for (i in 1:j) {
+  mod <- lm(Precio ~ Eolica +SolarPV +Demanda,
+            data=DataHoraria[(1+i):(k+i),])
+  betas <- mod$coef
+  coef[i,] <- betas
+}
+
+fechas = paste(DataHoraria$Fecha, DataHoraria$Hora)
+fechas <- as.POSIXct(fechas[k:(j+k-1)], format="%Y-%m-%d %H:%M")
+
+coef = as.data.frame(coef)
+coef = coef[which(!is.na(fechas)),]
+colnames(coef)= c("Intercepto","Eolica","PV","Demanda")
+coef$fechas <-fechas[which(!is.na(fechas))]
+
+
+ggplot(data=coef, aes(x=fechas)) +
+  geom_line(aes(y=PV,col="PV")) +
+  geom_line(aes(y = Eolica,col="Eólica"))+
+  labs(title = 'Merit order effect', x = 'Fecha', y = 'Betas')    +
+  scale_color_manual(values =c("cyan3","coral1"))+
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+
+```
+
+## MOE
+
+El MOE genera el "*missing money problem*" (los ingresos de los generadores no bastan para incentivar niveles óptimos de inversión) que tiene como implicaciones:
+
+-   Rentabilidad inadecuada de la inversión en proyectos renovables
+-   Aumento de costes de conexión a la red (requiere mejorar la red para hacer frente a la intermitencia de la generación)
+
+Así, los promotores de proyectos de energías renovables se enfrentan al riesgo de MOE, que debería aumentar con el creciente despliegue de capacidad de generación de energía renovable (la llamada canibalización).
+
+## Precios diarios
+
+::: columns
+::: {.column width="25%"}
+```{r}
+
+#| label: Est. des precios diarios 
+#| warning: false
+#| echo: false
+
+
+PreDia <- as.data.frame(DataDiaria$Precio[2:3927])
+
+EstDesPreDia <- matrix(,7,1) 
+
+EstDesPreDia[1]=timeSeries::colMins(PreDia) 
+EstDesPreDia[2]=timeSeries::colMeans(PreDia) 
+EstDesPreDia[3]=timeSeries::colMaxs(PreDia) 
+EstDesPreDia[4]=timeSeries::colVars(PreDia) 
+EstDesPreDia[5]=timeSeries::colSds(PreDia) 
+EstDesPreDia[6]=timeSeries::colSkewness(PreDia) 
+EstDesPreDia[7]=timeSeries::colKurtosis(PreDia) 
+
+rownames(EstDesPreDia) <- c("Mínimo","Media","Máximo","Varianza","D. Est","Sesgo","Curtosis") 
+colnames(EstDesPreDia) <- c("Precios spot diarios") 
+
+EstDesPreDia %>% 
+  kable(digits=2,format.args = list(big.mark = ","),caption="Estadísticas descriptivas precios diarios") %>%
+  kable_styling("striped", full_width = F, position = "center",font_size = 20)
+```
+:::
+
+::: {.column width="75%"}
+```{r}
+#| label: Figura precios diarios 
+#| warning: false
+#| echo: false
+
+
+ggplot(data=DataDiaria,aes(x=Fecha)) + 
+  geom_line(aes(y=Precio,col="Precio Horario"),show.legend = FALSE)+
+  labs(title = 'Precio spot diarios',x = 'Fecha', y = 'EUR/MWh')+
+  scale_color_manual(values = "black")
+  
+```
+:::
+:::
+
+## Modelación de precios
+
+Un modelo explicativo del comportamiento de los precios se puede realizar mediante un modelo de regresión lineal tomando como variables explicativas la generación eólica, fotovoltaica, la demanda, los precios del gas natural y el carbón (EUA). La especificación del modelo es la siguiente:
+
+$$ \begin{align} Precio_t= & b_o+b_1Eolica_{t-1}+b_2PV_{t-1}+b_3Demanda_{t-1} \\ & + b_4Gas_{t-1}+b_5EUA_{t-1}+\epsilon_{t-1} \end{align} $$
+
+Las variables explicativas se rezagan un día para tener en cuenta el modo en el que se forman los precios al por mayor. Los precios del gas natural fueron extraídos de [MIBGAS](https://www.mibgas.es/es) y los precios del carbono (European Union Allowances) de [Investing](https://www.investing.com/commodities/carbon-emissions-historical-data).
+
+## Modelación de precios
+
+```{r}
+#| label: reg1
+#| warning: false
+#| echo: false
+
+load <- DataDiaria[2:3713,c(1,27)]
+
+SolViento <- DataDiaria[,c(1,9,22)]
+DataSpot <- right_join(SolViento,DataSpread)
+
+DSpot <- right_join(load,DataSpot)
+
+DSpot$LEolica <- dplyr::lag(DSpot$Eolica, n=1)
+DSpot$LPV <- dplyr::lag(DSpot$SolarPV, n=1)
+DSpot$LDemanda <- dplyr::lag(DSpot$Demanda, n=1)
+DSpot$LGas <- dplyr::lag(DSpot$MIBGAS, n=1)
+DSpot$LEUA <- dplyr::lag(DSpot$EUA, n=1)
+
+DSpot <- DSpot[2:2056,]
+
+OLS <- lm(PrecioSpot ~ LEolica + LPV + LDemanda + LGas + LEUA,
+          data=DSpot)
+stargazer(OLS,type = "text")
+```
+
+## Curva de pato
+
+![Fuente: https://morningtonenviro.org.au/big-batteries-are-solving-a-longstanding-problem-with-solar-power-in-california-can-they-do-the-same-for-australia/](Duck%20Curve.jpeg){fig-align="center"}
+
+## Curva de pato - Demanda
+
+```{=html}
+ <head><title>Shiny App Iframe</title></head> <body> <iframe src="https://rslte.shinyapps.io/AppDemanda/" style="border: none; width: 100%; height: 550px" frameborder="0"></iframe> </body>
+```
+## Curva de pato - Precios
+
+```{=html}
+ <head><title>Shiny App Iframe</title></head> <body> <iframe src="https://rslte.shinyapps.io/CurvadePato/" style="border: none; width: 100%; height: 550px" frameborder="0"></iframe> </body>
+```
+## Perfil de precios
+
+::: columns
+::: {.column width="30%"}
+Los años 2021, 2022 y 2023 presentan los precios más altos para todas las horas del día.
+
+Cada vez se evidencia una disminución más pronunciada entre las 7:00 y las 16:00 horas, indicando el efecto de la mayor generación con plantas fotovoltaicas.
+:::
+
+::: {.column width="70%"}
+```{r}
+#| warning: false
+#| echo: false 
+#| label: low price  
+
+DataHoraria2 <- DataHoraria %>%                
+  mutate(Hora2=as.numeric(substr(Hora,1,2)),                       
+         Periodo = as.character(year(Fecha)),anno = year(Fecha)) %>%                dplyr::filter(Periodo!="2013")  
+
+DataHoursum <- DataHoraria2 %>%                 
+  mutate(LowPrice=ifelse(Precio<10,1,0)) %>%                   
+  group_by(Hora2,Periodo) %>%                     
+  summarize(Low=mean(LowPrice, na.rm = TRUE)) %>%                      
+  dplyr::filter(Periodo=="2014"|                                    
+                Periodo=="2015"|                                    
+                Periodo=="2022"|                                   
+                Periodo=="2023"|
+                Periodo=="2024"
+                )                       
+
+# ggplot(DataHoursum, aes(x = Hora2, col=Periodo)) + 
+#    geom_point(aes(y = Low, group=Periodo))   + 
+#    xlab("Hora del Día") + 
+#    scale_colour_brewer(palette="Set3") +
+#    theme_bw()  g
+
+ggplot(DataHoursum, aes(fill=Periodo, y=Low*100, x=Hora2)) +   
+  geom_bar(position="dodge", stat="identity")+     
+  labs(title = 'Porcentaje de veces precios menores a 10 EUR/MWh',
+       x="Hora",y="Porcentaje")+
+  theme(legend.position="bottom") +
+  theme(legend.title=element_blank())
+```
+:::
+:::
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](Precios%20minoristas.png){fig-align="center" width="600"}](https://www.orkestra.deusto.es/es/actualidad/noticias-eventos/beyondcompetitiveness/2284-determinacion-facturas-electricidad-consumidores-finales)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](Paper1.png)](https://doi.org/10.1016/j.energy.2017.07.181)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](Paper2.png){fig-align="center"}](https://doi.org/10.1016/j.enpol.2018.11.020)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](Paper3.png){fig-align="center"}](https://doi.org/10.1016/j.enpol.2022.113018)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](Paper4.png){fig-align="center"}](https://doi.org/10.1016/j.eneco.2024.107789)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+[![](WeatherShocks.png){fig-align="center"}](https://climatelecprices.shinyapps.io/WeatherShocks/)
+
+## Algunos trabajos sobre precios de la eletricidad
+
+![](Paper5.png){fig-align="center"}
+
+## Algunos trabajos sobre precios de la eletricidad
+
+![](TimeGAN.png)
+
+# !Muchas gracias!
