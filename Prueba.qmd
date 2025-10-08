@@ -1,7 +1,7 @@
 ---
 title: "Los precios de la electricidad: Mercado Español"
 author: "Stephanía Mosquera López"
-date: "2024-10-17"
+date: "2025-10-09"
 format:
   revealjs: 
     theme: [simple,style.scss]
@@ -41,7 +41,7 @@ library(stargazer)
 library(patchwork)
 
 
-setwd("C:/Users/smosq/OneDrive/1. Orkestra/6. Master Dual UD/2. Presentación precios de la electricidad/Quarto/Data")
+setwd("C:/Users/smosq/OneDrive/1. Orkestra/6. MDIT/2. Presentación precios/Quarto/Data")
 #setwd("C:/Users/sanbo/OneDrive/2. Proyecto Diseño del Mercado Eléctrico/Datos/Datos Hora_REE")
 
 load("DatosQuarto.RData")
@@ -99,7 +99,7 @@ El mercado mayorista español primero se integró con el mercado portugués, for
 
 ## ¿Cómo se forman los precios spot?
 
--   Todos los días del año a las **12:00 CET**, se lleva a cabo la sesión del mercado diario en la que se fijan los precios y energías de la electricidad en toda Europa para las veinticuatro horas del día siguiente.
+-   Todos los días del año a las **12:00 CET**, se lleva a cabo la sesión del mercado diario en la que se fijan los precios y energías de la electricidad en toda Europa para las veinticuatro horas del día siguiente ([La unidad de tiempo de mercado de 15 minutos (MTU) se pone en marcha en el mercado energético](https://www.smartgridsinfo.es/2025/09/29/unidad-tiempo-mercado-15-minutos-mtu-pone-marcha-mercado-energetico?utm_source=SMARTGRIDSINFO&utm_campaign=859cacd12c-smartgridsinfo_newsletter_diario&utm_medium=email&utm_term=0_15aa5aa69e-ab8c112e28-540664252)).
 
 -   Se basa en el **coste marginal**, que indica cuánto le cuesta a un productor generar un MWh adicional de electricidad.
 
@@ -195,7 +195,7 @@ EstDesDda %>%
   kable_styling("striped", full_width = F, position = "left",font_size = 24)
 ```
 
-La demanda de electricidad disminuyó en 2020 debido a la pandemia, repuntó en 2021 y luego ha venido decreciendo durante el 2022 y 2023 (producto del incremento en los precios). La demanda industrial no ha recuperado sus niveles precrisis energética.
+La demanda de electricidad disminuyó en 2020 debido a la pandemia, repuntó en 2021 y luego ha venido decreciendo durante el 2022 y 2023 (producto del incremento en los precios).
 
 ## Renovables
 
@@ -352,32 +352,6 @@ ggplot(DataMonth) +
 
 ```
 
-## Generación convencional
-
-```{r}
-#| label: Generacion H, CC, C, N
-#| warning: false
-#| echo: false
-
-DataMesGen <- DataDiaria %>%
-              mutate(Fecha2 = as.yearmon(Fecha))  %>%
-              group_by(Fecha2) %>%
-              summarise(CC=sum(CC, na.rm = TRUE),
-                        HidraUGH=sum(HidraUGH, na.rm = TRUE),
-                        Carbon=sum(Carbon, na.rm = TRUE)) %>%
-              ungroup() %>%
-              dplyr::filter(year(Fecha2)>=2014)
-
-ggplot(DataMesGen) +
-  geom_line(aes(x = Fecha2, y = CC, colour = 'Ciclo Combinado')) +
-  geom_line(aes(x = Fecha2, y = Carbon, colour = 'Carbón')) +
-  geom_line(aes(x = Fecha2, y = HidraUGH, colour = 'Hidraúlica')) +
-  labs(title = 'Evolución de fuentes de generación convencionales que brindan flexibilidad', x = 'Fecha', y = 'MWh') +
-  scale_color_manual(values =c("coral1","#7cae00","#c77cff"))+
-  theme(legend.position="bottom") +
-  theme(legend.title=element_blank())
-
-```
 
 ## Precios de commodities
 
@@ -401,167 +375,6 @@ p2 = ggplot(data=DataSpread,aes(x=Fecha)) +
   
 p1+ p2+ plot_layout(ncol=1)
 
-```
-
-## Tecnologías marginales
-
-Utilizando los datos disponibles en [OMIE](https://www.omie.es/) se calcula el porcentaje de horas que cada tecnología es marginal para los años 2021 a 2023:
-
--   En el 2021, la generación hidráulica es la que en mayor porcentaje marcó el precio de la electricidad
-
--   En 2022, el porcentaje de horas en que los ciclos combinados marcan el precio se incrementó
-
--   En 2023 el comportamiento es similar al de 2021, pero con una mayor participación de la generación renovable, cogeneración y residuos como tecnologías marginales
-
-```{r}
-#| label: Marginal
-#| warning: false
-#| echo: false
-
-
-DataTM <- DataTM %>%
-  melt(id.var=c("Fecha")) %>%
-  arrange(Fecha, variable)
-
-DataTM <- DataTM %>% 
-  rename(Hora = variable)
-
-DataTM <- DataTM %>% 
-  rename(Tecnologia = value)
-
-DataTM <- DataTM %>% 
-  mutate(YearMonth = paste0(year(Fecha),"-",month(Fecha)))
-
-DataTM[ ,5:8] <- str_split_fixed(DataTM$Tecnologia,"\n", 4)
-DataTM[which(DataTM$V6==""),5:8] <- str_split_fixed(DataTM$Tecnologia[which(DataTM$V6=="")]," ", 4)
-
-df7 <- data.frame(matrix(ncol = 2, nrow = 0))
-colnames(df7) <- c("YearMonth","marg")
-
-for (i in 5:8) {
-  df6 <- DataTM[,c(4,i)]
-  names(df6) <- c("YearMonth","marg")
-  df6 <- df6 %>%
-    mutate(n=1) %>%
-    group_by(YearMonth,marg) %>%
-    summarise(ocurr=sum(n)) %>%
-    ungroup()
-  df7 <- rbind(df7,df6)
-}
-
-df7 <- df7 %>%
-        mutate(marg=gsub("\r","",marg),
-               marg=gsub("II","HI",marg)) %>%
-        dplyr::filter(marg!="") %>%
-        group_by(YearMonth,marg) %>%
-          summarise(veces=sum(ocurr)) %>%
-        ungroup()
-  
-df7 <- df7 %>%
-        mutate(Fecha=ifelse(nchar(YearMonth)==7,
-                                  YearMonth,
-                                  paste0(substr(YearMonth,1,5),"0",substr(YearMonth,6,6))))
-
-df7$Fecha= as.yearmon(df7$Fecha)
-
-df7 <- df7 %>% 
-        mutate(Year=year(Fecha))%>% 
-        mutate(Mes=month(Fecha,label=TRUE))
-   
-df7 <- df7 %>% 
-        group_by(Mes, Year) %>% 
-        mutate(perc = veces*100/sum(veces)) %>% 
-        ungroup()
-
-df7 <- df7 %>% 
-        mutate(marg=ifelse(marg=="BG","Bombeo generación",
-                           ifelse(marg=="HI","Hidráulica",
-                             ifelse(marg=="MIP","Importación Portugal",
-                               ifelse(marg=="RE","Renov.,cog.y res",
-                                ifelse(marg=="TCC","Ciclo Combinado",
-                                  ifelse(marg=="NU","Nuclear",
-                                              "Carbón")))))))
-                                  
-```
-
-## Tecnologías marginales - 2021
-
-```{r}
-#| label: Marginal 1
-#| warning: false
-#| echo: false
-
-
-ggplot(subset(df7,Year==2021), aes(x = Mes, y = perc, fill = marg)) +
-  geom_bar(stat="identity", width = 0.8) +
-  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
-  theme_minimal(base_size = 12)+
-  scale_fill_brewer(palette="RdBu")+
-  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2021')
-
-```
-
-## Tecnologías marginales - 2022
-
-```{r}
-#| label: Marginal 2
-#| warning: false
-#| echo: false
-
-
-ggplot(subset(df7,Year==2022), aes(x = Mes, y = perc, fill = marg)) +
-  geom_bar(stat="identity", width = 0.8) +
-  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
-  theme_minimal(base_size = 12)+
-  scale_fill_brewer(palette="RdBu")+
-  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2022')
-
-```
-
-## Tecnologías marginales - 2023
-
-```{r}
-#| label: Marginal 3
-#| warning: false
-#| echo: false
-
-ggplot(subset(df7,Year==2023), aes(x = Mes, y = perc, fill = marg)) +
-  geom_bar(stat="identity", width = 0.8) +
-  labs(x = "Mes", y = "Porcentaje", fill = "Tecnología marginal") +
-  theme_minimal(base_size = 12)+
-  scale_fill_brewer(palette="RdBu")+
-  labs(title = 'Porcentaje de horas en las que marca precio cada tecnología - Año 2023')
-
-
-```
-
-## Tecnologías marginales - 2021 a 2023
-
-```{r}
-
-#Tabla
-
-dfn <- df7[,c(2,4,5,6,7)]
-
-dfn <- dfn %>% 
-        group_by(marg,Year) %>% 
-        summarise(PPerc=mean(perc, na.rm = TRUE)) %>% 
-        ungroup() 
-        
-
-dfn_wide <- spread(dfn,Year,PPerc)
-
-dfn_wide <- dfn_wide  %>%
-               mutate(`2021` = ifelse(is.na(`2021`),0,`2021`))
-             
-dfn2 <- dfn_wide
-dfn2 <- as.matrix(dfn2[,2:4])
-rownames(dfn2) <- c("Bombeo generación","Carbón","Ciclo Combinado",
-                    "Hidraúlica","Importación Portugal","Nuclear","Renov., cog. y res")
-
-dfn2 %>% 
-  kable(digits=2,format.args = list(big.mark = ","),caption="Promedio del porcentaje de horas en las que marca el precio cada tecnología por año")  %>%
-  kable_styling("striped", full_width = F, position = "left",font_size = 28)
 ```
 
 # Evolución de los precios spot
@@ -838,6 +651,8 @@ ggplot(DataHoursum, aes(fill=Periodo, y=Low*100, x=Hora2)) +
 :::
 :::
 
+# ¿Qué enfoques existen para pronosticar precios de electricidad a partir de variables de clima y demanda, y cómo varía su desempeño?¿Y para pronosticar la demanda y el clima?
+
 ## Algunos trabajos sobre precios de la eletricidad
 
 [![](Precios%20minoristas.png){fig-align="center" width="600"}](https://www.orkestra.deusto.es/es/actualidad/noticias-eventos/beyondcompetitiveness/2284-determinacion-facturas-electricidad-consumidores-finales)
@@ -870,4 +685,4 @@ ggplot(DataHoursum, aes(fill=Periodo, y=Low*100, x=Hora2)) +
 
 ![](TimeGAN.png)
 
-# !Muchas gracias!
+
